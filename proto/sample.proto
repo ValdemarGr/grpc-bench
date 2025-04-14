@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package bench.sample;
+
+import "scalapb/scalapb.proto";
+import "google/protobuf/empty.proto";
+
+option (scalapb.options) = {
+  preserve_unknown_fields: false
+  no_default_values_in_constructor: true;
+};
+
+option java_package = "bench.proto.sample";
+
+message Sample {
+  string name = 1;
+}
+
+service Svc {
+  rpc SendSample (stream Sample) returns (google.protobuf.Empty);
+  rpc GetSample (google.protobuf.Empty) returns (stream Sample);
+}
