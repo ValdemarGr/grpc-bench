@@ -38,7 +38,7 @@ object Main extends IOApp {
       .resource[IO]
     client <- sample.SvcFs2Grpc.stubResource[IO](ch)
 
-    doneGet <- client.getSample(com.google.protobuf.empty.Empty(), new Metadata()).take(n).compile.drain.background
+    // doneGet <- client.getSample(com.google.protobuf.empty.Empty(), new Metadata()).take(n).compile.drain.background
 
     q <- Resource.eval(Queue.unbounded[IO, Option[String]])
     doneSend <- client
@@ -51,7 +51,7 @@ object Main extends IOApp {
     start <- Resource.eval(IO.monotonic)
 
     _ <- Resource.eval {
-      streamEffect.compile.drain *> doneSend *> doneGet
+      streamEffect.compile.drain *> doneSend// *> doneGet
     }
 
     e <- Resource.eval(IO.monotonic)
@@ -64,7 +64,7 @@ object Main extends IOApp {
       _ <-
         if (server) (runServer.useForever: IO[Unit])
         else {
-          runClient(1000).use_.replicateA(20) *> runClient(1).use { dur =>
+          runClient(1000).use_.replicateA(10) *> runClient(1).use { dur =>
             val millis = dur.toNanos.toDouble / 1_000_000
             IO.println(s"took $millis ms, average ${millis / 1} ms")
           }
