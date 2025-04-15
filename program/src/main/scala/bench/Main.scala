@@ -55,7 +55,7 @@ object Main extends IOApp {
 
   def udpServer: Resource[IO, Unit] =
     Network[IO]
-      .openDatagramSocket(address= host"0.0.0.0".some,port = Some(port"9998"))
+      .openDatagramSocket(address = host"0.0.0.0".some, port = Some(port"9998"))
       .evalMap { sock =>
         sock.reads
           // .evalTap(dg => IO.println(s"Received ${dg.bytes.size} bytes from ${dg.remote}"))
@@ -94,8 +94,9 @@ object Main extends IOApp {
           _ <- packetChnks.traverse(send.sendBytes)
           out <- IO
             .race(
-              packetChnks.traverse_(p => send.recv(p.size)) >> IO.monotonic.map(end => (end - start).some),
-              IO.sleep(250.millis).as(None)
+              packetChnks.traverse_(p => send.sendBytes(p) *> send.recv(p.size)) >>
+                IO.monotonic.map(end => (end - start).some),
+              IO.sleep(5.seconds).as(None)
             )
             .map(_.merge)
         } yield out
@@ -125,12 +126,12 @@ object Main extends IOApp {
       runTest = tcpClient.use { send =>
         for {
           start <- IO.monotonic
-          _ <- packetChnks.traverse(send.sendBytes)
-          out <- packetChnks.traverse_(p => send.recv(p.size)) >> IO.monotonic.map(end => (end - start))
+          out <- packetChnks.traverse_(p => send.sendBytes(p) >> send.recv(p.size)) >>
+            IO.monotonic.map(end => (end - start))
         } yield out
       }
       _ <- runTest.replicateA(newConn)
-      _ <- IO.println(s"done warming up UDP client, running tests with same parameters")
+      _ <- IO.println(s"done warming up TCP client, running tests with same parameters")
       results <- runTest.replicateA(newConn)
       report = {
         val durNanos = results.map(_.toNanos.toDouble / 1_000_000)
@@ -193,8 +194,7 @@ object Main extends IOApp {
 
       _ <- Dispatcher.parallel[IO].use { disp =>
         if (server) {
-          IO.unit
-          // runServer.useForever &> udpServer.useForever &> tcpServer
+          runServer.useForever &> udpServer.useForever &> tcpServer
         } else {
           val grpc = runClient(disp, 10).use_.replicateA(newConn) *> runClient(disp, 1).use { dur =>
             val millis = dur.toNanos.toDouble / 1_000_000
