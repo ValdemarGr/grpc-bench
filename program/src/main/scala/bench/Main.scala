@@ -18,17 +18,18 @@ import fs2.io.net.Datagram
 import com.comcast.ip4s.*
 import fs2.Chunk
 import cats.effect.std.Dispatcher
+import java.net.InetSocketAddress
 
 object Main extends IOApp {
   val ipaddr = ip"127.0.0.1"
   val hostname = Hostname.fromString(ipaddr.toString).get
   val packets = 10
-  val newConn = 1000
+  val newConn = 10
   val sz = 1024
 
   def tcpServer: IO[Unit] =
     Network[IO]
-      .server(port = Some(port"9997"))
+      .server(address = host"0.0.0.0".some, port = Some(port"9997"))
       .map(sock => sock.reads.through(sock.writes).attempt)
       .parJoinUnbounded
       .compile
@@ -54,7 +55,7 @@ object Main extends IOApp {
 
   def udpServer: Resource[IO, Unit] =
     Network[IO]
-      .openDatagramSocket(port = Some(port"9998"))
+      .openDatagramSocket(address= host"0.0.0.0".some,port = Some(port"9998"))
       .evalMap { sock =>
         sock.reads
           // .evalTap(dg => IO.println(s"Received ${dg.bytes.size} bytes from ${dg.remote}"))
@@ -153,7 +154,7 @@ object Main extends IOApp {
       }
     }
     _ <- NettyServerBuilder
-      .forPort(9999)
+      .forAddress(InetSocketAddress("0.0.0.0", 9999))
       .addService(rsc)
       .resource[IO]
       .evalMap(x => IO(x.start()))
@@ -192,9 +193,10 @@ object Main extends IOApp {
 
       _ <- Dispatcher.parallel[IO].use { disp =>
         if (server) {
-          runServer.useForever &> udpServer.useForever &> tcpServer
+          IO.unit
+          // runServer.useForever &> udpServer.useForever &> tcpServer
         } else {
-          val grpc = runClient(disp, 10).use_.replicateA(100) *> runClient(disp, 1).use { dur =>
+          val grpc = runClient(disp, 10).use_.replicateA(newConn) *> runClient(disp, 1).use { dur =>
             val millis = dur.toNanos.toDouble / 1_000_000
             IO.println(s"GRPC (TCP) took $millis ms")
           }
